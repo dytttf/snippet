@@ -45,8 +45,8 @@ def main():
         print(author_counter[:5])
         plt.show()
     # 标题摘要top30词云
-    if 0:
-        for cat in ["title", "summary"]:
+    if 1:
+        for cat in ["title", "summary"][1:]:
             text = re.sub("[^\w]", " ", " ".join(list(df[cat])))
             # 清理空格和单字
             word_counter = Counter([x for x in jieba.cut(text) if len(x.strip()) > 1])
