@@ -2,10 +2,13 @@
 import re
 import asyncio
 
+import pyppeteer
 from pyppeteer import launcher
 
-# hook  禁用 防止监测webdriver
-launcher.AUTOMATION_ARGS.remove("--enable-automation")
+
+if pyppeteer.version <= "0.0.25":
+    # hook  禁用 防止监测webdriver
+    launcher.AUTOMATION_ARGS.remove("--enable-automation")
 
 from pyppeteer import launch
 
@@ -13,20 +16,36 @@ from pyppeteer.network_manager import Request, Response
 from pyppeteer.dialog import Dialog
 
 
+proxy = "http://127.0.0.1:1080"
+
+
+args = [
+    "--start-maximized",
+    "--no-sandbox",
+    "--ignore-certificate-errors",
+    "--log-level=3",
+    "--enable-extensions",
+    "--window-size=1920,1080",
+    # "--proxy-server={}".format(proxy),
+    "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36",
+]
+
+if pyppeteer.version <= "0.0.25":
+    args.append("--disable-infobars")
+else:
+    args.append("--disable-blink-features=AutomationControlled")
+
 launch_args = {
     "headless": False,
-    "args": [
-        "--start-maximized",
-        "--no-sandbox",
-        "--disable-infobars",
-        "--ignore-certificate-errors",
-        "--log-level=3",
-        "--enable-extensions",
-        "--window-size=1920,1080",
-        "--proxy-server=http://localhost:1080",
-        "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36",
-    ],
+    "args": args,
+    "autoClose": False,
+    "dumpio": True,
 }
+
+if pyppeteer.version > "0.0.25":
+    launch_args.update(
+        {"ignoreDefaultArgs": ["--enable-automation", "--disable-extensions"]}
+    )
 
 
 async def modify_url(request: Request):
@@ -68,8 +87,6 @@ async def handle_dialog(dialog: Dialog):
 import aiohttp
 
 aiohttp_session = aiohttp.ClientSession(loop=asyncio.get_event_loop())
-
-proxy = "http://127.0.0.1:1080"
 
 
 async def use_proxy_base(request: Request):
@@ -202,20 +219,31 @@ async def interception_test():
     if 0:
         # 启用拦截器
         await page.setRequestInterception(True)
-        page.on("request", modify_url)
+        # 捕获request，response
+        if pyppeteer.version <= "0.0.25":
+            page.on("request", modify_url)
+        else:
+            page.on("request", lambda r: asyncio.ensure_future(modify_url(r)))
     # 2. 获取响应内容
     if 0:
         # 注意这里不需要设置 page.setRequestInterception(True)
-        page.on("response", get_content)
+        if pyppeteer.version <= "0.0.25":
+            page.on("response", get_content)
+        else:
+
+            page.on("response", lambda r: asyncio.ensure_future(get_content(r)))
     # 3. 使用代理
     if 0:
         # 启用拦截器
         await page.setRequestInterception(True)
-        # page.on("request", use_proxy_base)
-        # page.on("request", use_proxy_and_cache)
-        page.on("request", pass_webdriver)
+        if pyppeteer.version <= "0.0.25":
+            page.on("request", pass_webdriver)
+            # page.on("request", use_proxy_base)
+            # page.on("request", use_proxy_and_cache)
+        else:
+            page.on("request", lambda r: asyncio.ensure_future(pass_webdriver(r)))
 
-    await page.goto("https://www.baidu.com")
+    await page.goto("http://www.baidu.com")
 
     await asyncio.sleep(10)
 
